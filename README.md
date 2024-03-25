@@ -1,176 +1,190 @@
-![SteVe](src/main/resources/webapp/static/images/logo.png) 
-
-[![build and run tests](https://github.com/steve-community/steve/actions/workflows/main.yml/badge.svg)](https://github.com/steve-community/steve/actions/workflows/main.yml)
-
-
-# Introduction
-
-SteVe started its life at the RWTH Aachen University [in 2013](https://github.com/steve-community/steve/issues/827). 
-The name is derived from _Steckdosenverwaltung_ in German (in English: socket administration). 
-The aim of SteVe is to support the deployment and popularity of electric mobility, so it is easy to install and to use. 
-It provides basic functions for the administration of charge points, user data, and RFID cards for user authentication and was tested successfully in operation.
-
-SteVe is considered as an open platform to implement, test and evaluate novel ideas for electric mobility, like authentication protocols, reservation mechanisms for charge points, and business models for electric mobility. 
-The project is distributed under [GPL](LICENSE.txt) and is free to use. 
-If you are going to deploy it we are happy to see the [logo](website/logo/managed-by-steve.pdf) on a charge point.
-
-### Charge Point Support
-
-Electric charge points using the following OCPP versions are supported:
-
-* OCPP1.2S
-* OCPP1.2J
-* OCPP1.5S
-* OCPP1.5J
-* OCPP1.6S
-* OCPP1.6J
-
-For Charging Station compatibility please check:
-https://github.com/steve-community/steve/wiki/Charging-Station-Compatibility
-
-### System Requirements
-
-SteVe requires 
-* JDK 17 or newer
-* Maven 
-* MySQL or MariaDB. You should use [one of these](.github/workflows/main.yml#L11) supported versions.
-
-to build and run. 
-
-SteVe is designed to run standalone, a java servlet container / web server (e.g. Apache Tomcat), is **not** required.
-
-# Configuration and Installation
-
-1. Database preparation:
-
-    **Important**: Make sure that the time zone of the MySQL server is the same as [the time zone of SteVe](src/main/java/de/rwth/idsg/steve/SteveConfiguration.java#L46). Since `UTC` is strongly recommended by OCPP, it is the default in SteVe and you should set it in MySQL, accordingly.
-
-    Make sure MySQL is reachable via TCP (e.g., remove `skip-networking` from `my.cnf`).
-    The following MySQL statements can be used as database initialization (adjust database name and credentials according to your setup).
-
-    ```
-    CREATE DATABASE stevedb CHARACTER SET utf8 COLLATE utf8_unicode_ci;
-    CREATE USER 'steve'@'localhost' IDENTIFIED BY 'changeme';
-    GRANT ALL PRIVILEGES ON stevedb.* TO 'steve'@'localhost';
-    GRANT SUPER ON *.* TO 'steve'@'localhost';
-    ```
-    Note: The statement `GRANT SUPER [...]` is only necessary to execute some of the previous migration files and is only needed for the initial database setup. Afterwards, you can remove this privilege by executing 
-    ```
-    REVOKE SUPER ON *.* FROM 'steve'@'localhost';
-    ```
-        
-2. Download and extract tarball:
-
-    You can download and extract the SteVe releases using the following commands (replace X.X.X with the desired version number):
-    ```
-    wget https://github.com/steve-community/steve/archive/steve-X.X.X.tar.gz
-    tar xzvf steve-X.X.X.tar.gz
-    cd steve-X.X.X
-    ```
-
-3. Configure SteVe **before** building:
-
-    The basic configuration is defined in [main.properties](src/main/resources/config/prod/main.properties):
-      - You _must_ change [database configuration](src/main/resources/config/prod/main.properties#L9-L13)
-      - You _must_ change [the host](src/main/resources/config/prod/main.properties#L22) to the correct IP address of your server
-      - You _must_ change [web interface credentials](src/main/resources/config/prod/main.properties#L17-L18)
-      - You _can_ access the application via HTTPS, by [enabling it and setting the keystore properties](src/main/resources/config/prod/main.properties#L32-L35)
-     
-    For advanced configuration please see the [Configuration wiki](https://github.com/steve-community/steve/wiki/Configuration)
-
-4. Build SteVe:
-
-    To compile SteVe simply use Maven. A runnable `jar` file containing the application and configuration will be created in the subdirectory `steve/target`.
-
-    ```
-    # ./mvnw package
-    ```
-
-5. Run SteVe:
-
-    To start the application run (please do not run SteVe as root):
-
-    ```
-    # java -jar target/steve.jar
-    ```
-
-# Docker
-
-If you prefer to build and start this project via docker (you can skip the steps 1, 4 and 5 from above), this can be done as follows: `docker compose up -d`
-
-Because the docker compose file is written to build the project for you, you still have to change the project configuration settings from step 3.
-Instead of changing the [main.properties in the prod directory](src/main/resources/config/prod/main.properties), you have to change the [main.properties in the docker directory](src/main/resources/config/docker/main.properties). There you have to change all configurations which are described in step 3.
-The database password for the user "steve" has to be the same as you have configured it in the docker compose file.
-
-With the default docker compose configuration, the web interface will be accessible at: `http://localhost:8180`
-
-# Kubernetes
-
-First build your image, and push it to a registry your K8S cluster can access. Make sure the build args in the docker build command are set with the same database configuration that the main deployment will use.
-
-`docker build --build-arg DB_HOST= --build-arg DB_PORT= --build-arg DB_USERNAME= --build-arg DB_PASSWORD= --build-arg DB_DATABASE=  -f k8s/docker/Dockerfile -t <IMAGE_NAME> .`
-
-`docker push <IMAGE_NAME>`
-
-
-Then go to `k8s/yaml/Deployment.yaml` and change `### YOUR BUILT IMAGE HERE ###` to your image tag, and fill in the environment variables with the same database connection that you used at build time.
-
-After this, create the namespace using `kubectl create ns steve` and apply your yaml with `kubectl apply -f k8s/yaml/Deployment.yaml` followed by `kubectl apply -f k8s/yaml/Service.yaml`
-
-
-To access this publicaly, you'll also have to setup an ingress using something like nginx or traefik. 
-
-# Ubuntu
-
-You'll find a tutorial how to prepare Ubuntu for SteVe here: https://github.com/steve-community/steve/wiki/Prepare-Ubuntu-VM-for-SteVe
-
-# AWS
-
-You'll find a tutorial how to setup SteVe in AWS using Lightsail here: https://github.com/steve-community/steve/wiki/Create-SteVe-Instance-in-AWS-Lightsail
-
-# First Steps
-
-After SteVe has successfully started, you can access the web interface using the configured credentials under:
-
-    http://<your-server-ip>:<port>/steve/manager
-    
-
-### Add a charge point
-
-1. In order for SteVe to accept messages from a charge point, the charge point must first be registered. To add a charge point to SteVe select *Data Management* >> *Charge Points* >> *Add*. Enter the ChargeBox ID configured in the charge point and confirm.
-
-2. The charge points must be configured to communicate with following addresses. Depending on the OCPP version of the charge point, SteVe will automatically route messages to the version-specific implementation.
-    - SOAP: `http://<your-server-ip>:<port>/steve/services/CentralSystemService`
-    - WebSocket/JSON: `ws://<your-server-ip>:<port>/steve/websocket/CentralSystemService`
-
-
-As soon as a heartbeat is received, you should see the status of the charge point in the SteVe Dashboard.
- 
-*Have fun!*
-
-Screenshots
------
-1. [Home](website/screenshots/home.png)
-2. [Connector Status](website/screenshots/connector-status.png)
-3. [Data Management - Charge Points](website/screenshots/chargepoints.png)
-4. [Data Management - Users](website/screenshots/users.png)
-5. [Data Management - OCPP Tags](website/screenshots/ocpp-tags.png)
-6. [Data Management - Reservations](website/screenshots/reservations.png)
-7. [Data Management - Transactions](website/screenshots/transactions.png)
-8. [Operations - OCPP v1.2](website/screenshots/ocpp12.png)
-9. [Operations - OCPP v1.5](website/screenshots/ocpp15.png)
-10. [Settings](website/screenshots/settings.png)
-
-GDPR
------
-If you are in the EU and offer vehicle charging to other people using SteVe, keep in mind that you have to comply to the General Data Protection Regulation (GDPR) as SteVe processes charging transactions, which can be considered personal data.
-
-Are you having issues?
------
-See the [FAQ](https://github.com/steve-community/steve/wiki/FAQ)
-
-Acknowledgments
------
-[goekay](https://github.com/goekay) thanks to
-- [JetBrains](https://jb.gg/OpenSourceSupport) who support this project by providing a free All Products Pack license, and
-- ej-technologies GmbH who support this project by providing a free license for their [Java profiler](https://www.ej-technologies.com/products/jprofiler/overview.html).
+<div class="Box-sc-g0xbh4-0 bJMeLZ js-snippet-clipboard-copy-unpositioned" data-hpc="true"><article class="markdown-body entry-content container-lg" itemprop="text"><p dir="auto"><a target="_blank" rel="noopener noreferrer" href="/steve-community/steve/blob/master/src/main/resources/webapp/static/images/logo.png"><img src="/steve-community/steve/raw/master/src/main/resources/webapp/static/images/logo.png" alt="史蒂夫" style="max-width: 100%;"></a></p>
+<p dir="auto"><a href="https://github.com/steve-community/steve/actions/workflows/main.yml"><img src="https://github.com/steve-community/steve/actions/workflows/main.yml/badge.svg" alt="构建并运行测试" style="max-width: 100%;"></a></p>
+<div class="markdown-heading" dir="auto"><h1 tabindex="-1" class="heading-element" dir="auto"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">介绍</font></font></h1><a id="user-content-introduction" class="anchor" aria-label="永久链接：简介" href="#introduction"><svg class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto"><font style="vertical-align: inherit;"></font><a href="https://github.com/steve-community/steve/issues/827" data-hovercard-type="issue" data-hovercard-url="/steve-community/steve/issues/827/hovercard"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">SteVe于 2013 年</font></font></a><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">在亚琛工业大学开始了自己的生活</font><font style="vertical-align: inherit;">。</font><font style="vertical-align: inherit;">该名称源自德语中的</font></font><em><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">Steckdosenverwaltung</font></font></em><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">（英语：socket Administration）。</font><font style="vertical-align: inherit;">SteVe 的目标是支持电动汽车的部署和普及，因此它易于安装和使用。</font><font style="vertical-align: inherit;">它提供了管理充电点、用户数据和用于用户身份验证的 RFID 卡的基本功能，并已在运行中进行了成功测试。</font></font></p>
+<p dir="auto"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">SteVe 被认为是一个开放平台，用于实施、测试和评估电动汽车的新颖想法，例如身份验证协议、充电点预留机制以及电动汽车的商业模式。</font></font><a href="/steve-community/steve/blob/master/LICENSE.txt"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">该项目按照GPL</font></font></a><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">分发</font><font style="vertical-align: inherit;">并且可以免费使用。</font><font style="vertical-align: inherit;">如果您打算部署它，我们很高兴</font><font style="vertical-align: inherit;">在充电点上看到该</font></font><a href="/steve-community/steve/blob/master/website/logo/managed-by-steve.pdf"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">徽标。</font></font></a><font style="vertical-align: inherit;"></font></p>
+<div class="markdown-heading" dir="auto"><h3 tabindex="-1" class="heading-element" dir="auto"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">充电点支持</font></font></h3><a id="user-content-charge-point-support" class="anchor" aria-label="永久链接：充电点支持" href="#charge-point-support"><svg class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">支持使用以下 OCPP 版本的充电点：</font></font></p>
+<ul dir="auto">
+<li><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">OCPP1.2S</font></font></li>
+<li><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">OCPP1.2J</font></font></li>
+<li><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">OCPP1.5S</font></font></li>
+<li><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">OCPP1.5J</font></font></li>
+<li><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">OCPP1.6S</font></font></li>
+<li><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">OCPP1.6J</font></font></li>
+</ul>
+<p dir="auto"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">有关充电站兼容性，请检查：
+ </font></font><a href="https://github.com/steve-community/steve/wiki/Charging-Station-Compatibility"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">https ://github.com/steve-community/steve/wiki/Charging-Station-Compatibility</font></font></a></p>
+<div class="markdown-heading" dir="auto"><h3 tabindex="-1" class="heading-element" dir="auto"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">系统要求</font></font></h3><a id="user-content-system-requirements" class="anchor" aria-label="永久链接：系统要求" href="#system-requirements"><svg class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">史蒂夫要求</font></font></p>
+<ul dir="auto">
+<li><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">JDK 17 或更高版本</font></font></li>
+<li><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">梅文</font></font></li>
+<li><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">MySQL 或 MariaDB。</font><font style="vertical-align: inherit;">您应该使用</font></font><a href="/steve-community/steve/blob/master/.github/workflows/main.yml#L11"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">这些受支持的版本之一</font></font></a><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">。</font></font></li>
+</ul>
+<p dir="auto"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">构建并运行。</font></font></p>
+<p dir="auto"><font style="vertical-align: inherit;"></font><strong><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">SteVe 被设计为独立运行，不需要</font></font></strong><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">java servlet 容器/Web 服务器（例如 Apache Tomcat）</font><font style="vertical-align: inherit;">。</font></font></p>
+<div class="markdown-heading" dir="auto"><h1 tabindex="-1" class="heading-element" dir="auto"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">配置与安装</font></font></h1><a id="user-content-configuration-and-installation" class="anchor" aria-label="永久链接：配置和安装" href="#configuration-and-installation"><svg class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<ol dir="auto">
+<li>
+<p dir="auto"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">数据库准备：</font></font></p>
+<p dir="auto"><strong><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">重要提示</font></font></strong><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">：确保MySQL 服务器的时区与</font></font><a href="/steve-community/steve/blob/master/src/main/java/de/rwth/idsg/steve/SteveConfiguration.java#L46"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">SteVe 的时区</font></font></a><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">相同。</font><font style="vertical-align: inherit;">由于</font></font><code>UTC</code><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">OCPP 强烈推荐，因此它是 SteVe 中的默认值，您应该在 MySQL 中相应地设置它。</font></font></p>
+<p dir="auto"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">确保 MySQL 可通过 TCP 访问（例如，</font></font><code>skip-networking</code><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">从 中删除</font></font><code>my.cnf</code><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">）。</font><font style="vertical-align: inherit;">以下 MySQL 语句可用作数据库初始化（根据您的设置调整数据库名称和凭据）。</font></font></p>
+<div class="snippet-clipboard-content notranslate position-relative overflow-auto"><pre class="notranslate"><code>CREATE DATABASE stevedb CHARACTER SET utf8 COLLATE utf8_unicode_ci;
+CREATE USER 'steve'@'localhost' IDENTIFIED BY 'changeme';
+GRANT ALL PRIVILEGES ON stevedb.* TO 'steve'@'localhost';
+GRANT SUPER ON *.* TO 'steve'@'localhost';
+</code></pre><div class="zeroclipboard-container">
+    <clipboard-copy aria-label="Copy" class="ClipboardButton btn btn-invisible js-clipboard-copy m-2 p-0 tooltipped-no-delay d-flex flex-justify-center flex-items-center" data-copy-feedback="Copied!" data-tooltip-direction="w" value="CREATE DATABASE stevedb CHARACTER SET utf8 COLLATE utf8_unicode_ci;
+CREATE USER 'steve'@'localhost' IDENTIFIED BY 'changeme';
+GRANT ALL PRIVILEGES ON stevedb.* TO 'steve'@'localhost';
+GRANT SUPER ON *.* TO 'steve'@'localhost';" tabindex="0" role="button">
+      <svg aria-hidden="true" height="16" viewBox="0 0 16 16" version="1.1" width="16" data-view-component="true" class="octicon octicon-copy js-clipboard-copy-icon">
+    <path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z"></path><path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z"></path>
+</svg>
+      <svg aria-hidden="true" height="16" viewBox="0 0 16 16" version="1.1" width="16" data-view-component="true" class="octicon octicon-check js-clipboard-check-icon color-fg-success d-none">
+    <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z"></path>
+</svg>
+    </clipboard-copy>
+  </div></div>
+<p dir="auto"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">注意：该语句</font></font><code>GRANT SUPER [...]</code><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">仅在执行之前的一些迁移文件时才需要，并且仅在初始数据库设置时才需要。</font><font style="vertical-align: inherit;">之后，您可以通过执行删除此权限</font></font></p>
+<div class="snippet-clipboard-content notranslate position-relative overflow-auto"><pre class="notranslate"><code>REVOKE SUPER ON *.* FROM 'steve'@'localhost';
+</code></pre><div class="zeroclipboard-container">
+    <clipboard-copy aria-label="Copy" class="ClipboardButton btn btn-invisible js-clipboard-copy m-2 p-0 tooltipped-no-delay d-flex flex-justify-center flex-items-center" data-copy-feedback="Copied!" data-tooltip-direction="w" value="REVOKE SUPER ON *.* FROM 'steve'@'localhost';" tabindex="0" role="button">
+      <svg aria-hidden="true" height="16" viewBox="0 0 16 16" version="1.1" width="16" data-view-component="true" class="octicon octicon-copy js-clipboard-copy-icon">
+    <path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z"></path><path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z"></path>
+</svg>
+      <svg aria-hidden="true" height="16" viewBox="0 0 16 16" version="1.1" width="16" data-view-component="true" class="octicon octicon-check js-clipboard-check-icon color-fg-success d-none">
+    <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z"></path>
+</svg>
+    </clipboard-copy>
+  </div></div>
+</li>
+<li>
+<p dir="auto"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">下载并解压 tarball：</font></font></p>
+<p dir="auto"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">您可以使用以下命令下载并提取 SteVe 版本（将 XXX 替换为所需的版本号）：</font></font></p>
+<div class="snippet-clipboard-content notranslate position-relative overflow-auto"><pre class="notranslate"><code>wget https://github.com/steve-community/steve/archive/steve-X.X.X.tar.gz
+tar xzvf steve-X.X.X.tar.gz
+cd steve-X.X.X
+</code></pre><div class="zeroclipboard-container">
+    <clipboard-copy aria-label="Copy" class="ClipboardButton btn btn-invisible js-clipboard-copy m-2 p-0 tooltipped-no-delay d-flex flex-justify-center flex-items-center" data-copy-feedback="Copied!" data-tooltip-direction="w" value="wget https://github.com/steve-community/steve/archive/steve-X.X.X.tar.gz
+tar xzvf steve-X.X.X.tar.gz
+cd steve-X.X.X" tabindex="0" role="button">
+      <svg aria-hidden="true" height="16" viewBox="0 0 16 16" version="1.1" width="16" data-view-component="true" class="octicon octicon-copy js-clipboard-copy-icon">
+    <path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z"></path><path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z"></path>
+</svg>
+      <svg aria-hidden="true" height="16" viewBox="0 0 16 16" version="1.1" width="16" data-view-component="true" class="octicon octicon-check js-clipboard-check-icon color-fg-success d-none">
+    <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z"></path>
+</svg>
+    </clipboard-copy>
+  </div></div>
+</li>
+<li>
+<p dir="auto"><font style="vertical-align: inherit;"></font><strong><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">在构建之前</font></font></strong><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">配置 SteVe </font><font style="vertical-align: inherit;">：</font></font></p>
+<p dir="auto"><font style="vertical-align: inherit;"></font><a href="/steve-community/steve/blob/master/src/main/resources/config/prod/main.properties"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">基本配置在main.properties</font></font></a><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">中定义</font><font style="vertical-align: inherit;">：</font></font></p>
+<ul dir="auto">
+<li><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">您</font></font><em><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">必须</font></font></em><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">更改</font></font><a href="/steve-community/steve/blob/master/src/main/resources/config/prod/main.properties#L9-L13"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">数据库配置</font></font></a></li>
+<li><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">您</font></font><em><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">必须将</font></font></em><font style="vertical-align: inherit;"></font><a href="/steve-community/steve/blob/master/src/main/resources/config/prod/main.properties#L22"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">主机</font></font></a><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">更改</font><font style="vertical-align: inherit;">为服务器的正确IP地址</font></font></li>
+<li><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">您</font></font><em><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">必须</font></font></em><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">更改</font></font><a href="/steve-community/steve/blob/master/src/main/resources/config/prod/main.properties#L17-L18"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">Web 界面凭据</font></font></a></li>
+<li><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">您</font></font><em><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">可以</font></font></em><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">通过</font></font><a href="/steve-community/steve/blob/master/src/main/resources/config/prod/main.properties#L32-L35"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">启用 HTTPS 并设置密钥库属性来访问该应用程序</font></font></a></li>
+</ul>
+<p dir="auto"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">有关高级配置，请参阅</font></font><a href="https://github.com/steve-community/steve/wiki/Configuration"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">配置 wiki</font></font></a></p>
+</li>
+<li>
+<p dir="auto"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">构建史蒂夫：</font></font></p>
+<p dir="auto"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">要编译 SteVe，只需使用 Maven。</font></font><code>jar</code><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">将在子目录中创建包含应用程序和配置的</font><font style="vertical-align: inherit;">可运行文件</font></font><code>steve/target</code><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">。</font></font></p>
+<div class="snippet-clipboard-content notranslate position-relative overflow-auto"><pre class="notranslate"><code># ./mvnw package
+</code></pre><div class="zeroclipboard-container">
+    <clipboard-copy aria-label="Copy" class="ClipboardButton btn btn-invisible js-clipboard-copy m-2 p-0 tooltipped-no-delay d-flex flex-justify-center flex-items-center" data-copy-feedback="Copied!" data-tooltip-direction="w" value="# ./mvnw package" tabindex="0" role="button">
+      <svg aria-hidden="true" height="16" viewBox="0 0 16 16" version="1.1" width="16" data-view-component="true" class="octicon octicon-copy js-clipboard-copy-icon">
+    <path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z"></path><path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z"></path>
+</svg>
+      <svg aria-hidden="true" height="16" viewBox="0 0 16 16" version="1.1" width="16" data-view-component="true" class="octicon octicon-check js-clipboard-check-icon color-fg-success d-none">
+    <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z"></path>
+</svg>
+    </clipboard-copy>
+  </div></div>
+</li>
+<li>
+<p dir="auto"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">运行史蒂夫：</font></font></p>
+<p dir="auto"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">要启动应用程序，请运行（请不要以 root 身份运行 SteVe）：</font></font></p>
+<div class="snippet-clipboard-content notranslate position-relative overflow-auto"><pre class="notranslate"><code># java -jar target/steve.jar
+</code></pre><div class="zeroclipboard-container">
+    <clipboard-copy aria-label="Copy" class="ClipboardButton btn btn-invisible js-clipboard-copy m-2 p-0 tooltipped-no-delay d-flex flex-justify-center flex-items-center" data-copy-feedback="Copied!" data-tooltip-direction="w" value="# java -jar target/steve.jar" tabindex="0" role="button">
+      <svg aria-hidden="true" height="16" viewBox="0 0 16 16" version="1.1" width="16" data-view-component="true" class="octicon octicon-copy js-clipboard-copy-icon">
+    <path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z"></path><path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z"></path>
+</svg>
+      <svg aria-hidden="true" height="16" viewBox="0 0 16 16" version="1.1" width="16" data-view-component="true" class="octicon octicon-check js-clipboard-check-icon color-fg-success d-none">
+    <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z"></path>
+</svg>
+    </clipboard-copy>
+  </div></div>
+</li>
+</ol>
+<div class="markdown-heading" dir="auto"><h1 tabindex="-1" class="heading-element" dir="auto"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">码头工人</font></font></h1><a id="user-content-docker" class="anchor" aria-label="永久链接：Docker" href="#docker"><svg class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">如果您更喜欢通过 docker 构建并启动此项目（您可以跳过上面的步骤 1、4 和 5），可以按如下方式完成：</font></font><code>docker compose up -d</code></p>
+<p dir="auto"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">因为 docker compose 文件是为您构建项目而编写的，所以您仍然需要更改步骤 3 中的项目配置设置。您</font><font style="vertical-align: inherit;">必须更改</font><a href="/steve-community/steve/blob/master/src/main/resources/config/docker/main.properties"><font style="vertical-align: inherit;">docker</font></a></font><a href="/steve-community/steve/blob/master/src/main/resources/config/prod/main.properties"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">中的 main.properties，而不是更改 prod 目录中的 main.properties</font></font></a><font style="vertical-align: inherit;"></font><a href="/steve-community/steve/blob/master/src/main/resources/config/docker/main.properties"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">目录</font></font></a><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">。</font><font style="vertical-align: inherit;">您必须更改步骤 3 中描述的所有配置。用户“steve”的数据库密码必须与您在 docker compose 文件中配置的密码相同。</font></font></p>
+<p dir="auto"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">使用默认的 docker compose 配置，可以通过以下位置访问 Web 界面：</font></font><code>http://localhost:8180</code></p>
+<div class="markdown-heading" dir="auto"><h1 tabindex="-1" class="heading-element" dir="auto"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">库伯内斯</font></font></h1><a id="user-content-kubernetes" class="anchor" aria-label="永久链接：Kubernetes" href="#kubernetes"><svg class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">首先构建您的映像，并将其推送到您的 K8S 集群可以访问的注册表。</font><font style="vertical-align: inherit;">确保 docker build 命令中的构建参数设置与主部署将使用的数据库配置相同。</font></font></p>
+<p dir="auto"><code>docker build --build-arg DB_HOST= --build-arg DB_PORT= --build-arg DB_USERNAME= --build-arg DB_PASSWORD= --build-arg DB_DATABASE=  -f k8s/docker/Dockerfile -t &lt;IMAGE_NAME&gt; .</code></p>
+<p dir="auto"><code>docker push &lt;IMAGE_NAME&gt;</code></p>
+<p dir="auto"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">然后转到</font></font><code>k8s/yaml/Deployment.yaml</code><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">并更改</font></font><code>### YOUR BUILT IMAGE HERE ###</code><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">为您的图像标签，并使用您在构建时使用的相同数据库连接填充环境变量。</font></font></p>
+<p dir="auto"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">之后，使用</font><font style="vertical-align: inherit;">以下命令创建命名空间</font></font><code>kubectl create ns steve</code><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">并应用您的 yaml</font></font><code>kubectl apply -f k8s/yaml/Deployment.yaml</code><font style="vertical-align: inherit;"></font><code>kubectl apply -f k8s/yaml/Service.yaml</code></p>
+<p dir="auto"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">要公开访问此内容，您还必须使用 nginx 或 traefik 等设置入口。</font></font></p>
+<div class="markdown-heading" dir="auto"><h1 tabindex="-1" class="heading-element" dir="auto"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">乌班图</font></font></h1><a id="user-content-ubuntu" class="anchor" aria-label="永久链接：免费" href="#ubuntu"><svg class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">您可以在这里找到如何为 SteVe 准备 Ubuntu 的教程：</font></font><a href="https://github.com/steve-community/steve/wiki/Prepare-Ubuntu-VM-for-SteVe"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">https://github.com/steve-community/steve/wiki/Prepare-Ubuntu-VM-for-SteVe</font></font></a></p>
+<div class="markdown-heading" dir="auto"><h1 tabindex="-1" class="heading-element" dir="auto"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">AWS</font></font></h1><a id="user-content-aws" class="anchor" aria-label="永久链接：AWS" href="#aws"><svg class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">您可以在此处找到如何使用 Lightsail 在 AWS 中设置 SteVe 的教程： https: </font></font><a href="https://github.com/steve-community/steve/wiki/Create-SteVe-Instance-in-AWS-Lightsail"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">//github.com/steve-community/steve/wiki/Create-SteVe-Instance-in-AWS-Lightsail</font></font></a></p>
+<div class="markdown-heading" dir="auto"><h1 tabindex="-1" class="heading-element" dir="auto"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">第一步</font></font></h1><a id="user-content-first-steps" class="anchor" aria-label="永久链接：第一步" href="#first-steps"><svg class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">SteVe 成功启动后，您可以使用以下配置的凭据访问 Web 界面：</font></font></p>
+<div class="snippet-clipboard-content notranslate position-relative overflow-auto"><pre class="notranslate"><code>http://&lt;your-server-ip&gt;:&lt;port&gt;/steve/manager
+</code></pre><div class="zeroclipboard-container">
+    <clipboard-copy aria-label="Copy" class="ClipboardButton btn btn-invisible js-clipboard-copy m-2 p-0 tooltipped-no-delay d-flex flex-justify-center flex-items-center" data-copy-feedback="Copied!" data-tooltip-direction="w" value="http://<your-server-ip>:<port>/steve/manager" tabindex="0" role="button">
+      <svg aria-hidden="true" height="16" viewBox="0 0 16 16" version="1.1" width="16" data-view-component="true" class="octicon octicon-copy js-clipboard-copy-icon">
+    <path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z"></path><path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z"></path>
+</svg>
+      <svg aria-hidden="true" height="16" viewBox="0 0 16 16" version="1.1" width="16" data-view-component="true" class="octicon octicon-check js-clipboard-check-icon color-fg-success d-none">
+    <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z"></path>
+</svg>
+    </clipboard-copy>
+  </div></div>
+<div class="markdown-heading" dir="auto"><h3 tabindex="-1" class="heading-element" dir="auto"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">添加充电点</font></font></h3><a id="user-content-add-a-charge-point" class="anchor" aria-label="永久链接：添加充电点" href="#add-a-charge-point"><svg class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<ol dir="auto">
+<li>
+<p dir="auto"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">为了让 SteVe 接受来自充电点的消息，必须首先注册充电点。</font><font style="vertical-align: inherit;">要向 SteVe 添加充电点，请选择</font></font><em><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">数据管理</font></font></em><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">&gt;&gt;</font></font><em><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">充电点</font></font></em><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">&gt;&gt;</font></font><em><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">添加</font></font></em><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">。</font><font style="vertical-align: inherit;">输入充电点中配置的ChargeBox ID并确认。</font></font></p>
+</li>
+<li>
+<p dir="auto"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">充电点必须配置为与以下地址进行通信。</font><font style="vertical-align: inherit;">根据充电点的 OCPP 版本，SteVe 将自动将消息路由到特定于版本的实施。</font></font></p>
+<ul dir="auto">
+<li><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">肥皂：</font></font><code>http://&lt;your-server-ip&gt;:&lt;port&gt;/steve/services/CentralSystemService</code></li>
+<li><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">WebSocket/JSON：</font></font><code>ws://&lt;your-server-ip&gt;:&lt;port&gt;/steve/websocket/CentralSystemService</code></li>
+</ul>
+</li>
+</ol>
+<p dir="auto"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">一旦收到检测信号，您应该会在 SteVe 仪表板中看到充电点的状态。</font></font></p>
+<p dir="auto"><em><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">玩得开心！</font></font></em></p>
+<div class="markdown-heading" dir="auto"><h2 tabindex="-1" class="heading-element" dir="auto"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">截图</font></font></h2><a id="user-content-screenshots" class="anchor" aria-label="永久链接：屏幕截图" href="#screenshots"><svg class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<ol dir="auto">
+<li><a href="/steve-community/steve/blob/master/website/screenshots/home.png"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">家</font></font></a></li>
+<li><a href="/steve-community/steve/blob/master/website/screenshots/connector-status.png"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">连接器状态</font></font></a></li>
+<li><a href="/steve-community/steve/blob/master/website/screenshots/chargepoints.png"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">数据管理 - 充电点</font></font></a></li>
+<li><a href="/steve-community/steve/blob/master/website/screenshots/users.png"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">数据管理 - 用户</font></font></a></li>
+<li><a href="/steve-community/steve/blob/master/website/screenshots/ocpp-tags.png"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">数据管理 - OCPP标签</font></font></a></li>
+<li><a href="/steve-community/steve/blob/master/website/screenshots/reservations.png"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">数据管理 - 预订</font></font></a></li>
+<li><a href="/steve-community/steve/blob/master/website/screenshots/transactions.png"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">数据管理 - 交易</font></font></a></li>
+<li><a href="/steve-community/steve/blob/master/website/screenshots/ocpp12.png"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">操作 - OCPP v1.2</font></font></a></li>
+<li><a href="/steve-community/steve/blob/master/website/screenshots/ocpp15.png"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">操作 - OCPP v1.5</font></font></a></li>
+<li><a href="/steve-community/steve/blob/master/website/screenshots/settings.png"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">设置</font></font></a></li>
+</ol>
+<div class="markdown-heading" dir="auto"><h2 tabindex="-1" class="heading-element" dir="auto"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">通用数据保护条例</font></font></h2><a id="user-content-gdpr" class="anchor" aria-label="永久链接：GDPR" href="#gdpr"><svg class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">如果您位于欧盟并向使用 SteVe 的其他人提供车辆充电服务，请记住，您必须遵守《通用数据保护条例》(GDPR)，因为 SteVe 处理收费交易（可被视为个人数据）。</font></font></p>
+<div class="markdown-heading" dir="auto"><h2 tabindex="-1" class="heading-element" dir="auto"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">你有问题吗？</font></font></h2><a id="user-content-are-you-having-issues" class="anchor" aria-label="永久链接： 你有问题吗？" href="#are-you-having-issues"><svg class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">查看</font></font><a href="https://github.com/steve-community/steve/wiki/FAQ"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">常见问题解答</font></font></a></p>
+<div class="markdown-heading" dir="auto"><h2 tabindex="-1" class="heading-element" dir="auto"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">致谢</font></font></h2><a id="user-content-acknowledgments" class="anchor" aria-label="永久链接：致谢" href="#acknowledgments"><svg class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></div>
+<p dir="auto"><a href="https://github.com/goekay"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">感谢</font></font></a><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">&ZeroWidthSpace;</font></font></p>
+<ul dir="auto">
+<li><a href="https://jb.gg/OpenSourceSupport" rel="nofollow"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">JetBrains</font></font></a><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">通过提供免费的 All Products Pack 许可证来支持该项目，以及</font></font></li>
+<li><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">ej-technologies GmbH 通过为其</font></font><a href="https://www.ej-technologies.com/products/jprofiler/overview.html" rel="nofollow"><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">Java 分析器</font></font></a><font style="vertical-align: inherit;"><font style="vertical-align: inherit;">提供免费许可证来支持该项目。</font></font></li>
+</ul>
+</article></div>
